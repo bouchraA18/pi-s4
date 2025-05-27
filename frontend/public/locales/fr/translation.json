@@ -1,0 +1,34 @@
+{
+  "menu": {
+    "home": "Accueil",
+    "about": "À propos",
+    "contact": "Contact"
+  },
+  "heroText": "Découvrez les meilleures écoles et instituts autour de vous, en quelques clics.",
+  "heroDescription": "Edunet vous aide à trouver rapidement un établissement selon votre ville, votre niveau ou votre spécialité grâce à un moteur de recherche intelligent et localisé.",
+  "heroTitle": "Trouvez une bonne école.",
+  "placeholder": {
+    "city": "Ville de l'établissement",
+    "level": "Nom ou niveau"
+  },
+  "search": "🔍",
+  "localisation": "Localisation actuelle",
+  "adresse": {
+    "unknown": "Localisation inconnue",
+    "error": "Erreur de géolocalisation"
+  },
+  "cards": [
+    {
+      "titre": "🎯 Ciblage précis",
+      "texte": "Trouvez les établissements correspondant à votre niveau ou spécialité. La plateforme vous guide intelligemment vers les options qui vous correspondent le mieux."
+    },
+    {
+      "titre": "📍 Localisation intelligente",
+      "texte": "Notre moteur détecte automatiquement votre position pour vous proposer les établissements les plus proches et adaptés à vos besoins."
+    },
+    {
+      "titre": "🚀 Accès rapide",
+      "texte": "Obtenez des résultats instantanés et précis sans remplir de longs formulaires. L'accès à l'information devient simple et rapide."
+    }
+  ]
+}
