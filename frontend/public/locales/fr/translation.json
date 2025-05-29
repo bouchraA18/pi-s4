@@ -1,0 +1,75 @@
+{
+  "menu": {
+    "home": "Accueil",
+    "about": "À propos",
+    "contact": "Contact"
+  },
+
+  "topbar": {
+    "phone": "📞 (+1) 3344 999 999",
+    "email": "✉️ info@edunet.com"
+  },
+
+  "loading": "Chargement…",
+
+  "adresse": {
+    "unknown": "Localisation inconnue",
+    "error": "Erreur de géolocalisation",
+    "denied": "Localisation refusée"
+  },
+
+  "location": {
+    "current": "Localisation actuelle :"
+  },
+
+  "search": {
+    "placeholder_ville": "Toutes villes",
+    "placeholder_quartier": "Tous quartiers",
+    "placeholder_niveau": "Tous niveaux",
+    "placeholder_formation": "Tous types de formation",
+    "button": "Rechercher"
+  },
+
+  "pagination": {
+    "prev": "‹ Préc.",
+    "next": "Suiv. ›"
+  },
+
+  "errors": {
+    "search": "Erreur lors de la recherche."
+  },
+
+  "error_modal": {
+    "title": "⚠️ Attention",
+    "message": "Veuillez sélectionner au moins un critère de recherche.",
+    "close": "Fermer"
+  },
+
+  "hero": {
+    "headline": "Découvrez les meilleures écoles et instituts autour de vous, en quelques clics.",
+    "subtext": "Edunet vous aide à trouver rapidement un établissement selon votre ville, votre niveau ou votre spécialité grâce à un moteur de recherche intelligent et localisé.",
+    "cta": "Trouvez une bonne école."
+  },
+
+  "results": {
+    "title": "Résultats de recherche",
+    "distance": "Distance :",
+    "ville": "Ville :",
+    "niveau": "Niveau :"
+  },
+
+  "cards": {
+    "0": {
+      "title": "🎯 Ciblage précis",
+      "text": "Trouvez les établissements correspondant à votre niveau ou spécialité. La plateforme vous guide intelligemment vers les options qui vous correspondent le mieux."
+    },
+    "1": {
+      "title": "📍 Localisation intelligente",
+      "text": "Notre moteur détecte automatiquement votre position pour vous proposer les établissements les plus proches et adaptés à vos besoins."
+    },
+    "2": {
+      "title": "🚀 Accès rapide",
+      "text": "Obtenez des résultats instantanés et précis sans remplir de longs formulaires. L'accès à l'information devient simple et rapide."
+    }
+  }
+}

@@ -1,7 +1,6 @@
-from django.contrib import admin
 from django.urls import path, include
 
 urlpatterns = [
-    path('admin/', admin.site.urls),
-    path('api/', include('core.urls')),
+    # Admin route removed – no admin app installed
+    path("api/", include("core.urls")),
 ]

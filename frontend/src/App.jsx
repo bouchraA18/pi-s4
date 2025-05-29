@@ -1,15 +1,19 @@
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+// src/App.jsx
+import React from "react";
+import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import Accueil from "./pages/Accueil";
-import Details from "./pages/Details";
+import Resultats from "./pages/Resultats";
+import DetailEtablissement from "./pages/DetailEtablissement";
 
 function App() {
   return (
-    <BrowserRouter>
+    <Router>
       <Routes>
         <Route path="/" element={<Accueil />} />
-        <Route path="/ecole/:id" element={<Details />} />
+        <Route path="/resultats" element={<Resultats />} />
+        <Route path="/etablissement/:id" element={<DetailEtablissement />} />
       </Routes>
-    </BrowserRouter>
+    </Router>
   );
 }
 
