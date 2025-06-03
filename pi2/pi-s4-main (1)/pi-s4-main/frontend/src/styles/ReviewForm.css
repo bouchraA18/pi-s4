@@ -1,0 +1,125 @@
+/* ReviewForm.css */
+.review-form-container {
+  background-color: white;
+  border-radius: 8px;
+  padding: 1.5rem;
+  margin-top: 2rem;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+}
+
+.review-form-container h3 {
+  color: #003580;
+  margin-top: 0;
+  margin-bottom: 1.5rem;
+  font-size: 1.25rem;
+}
+
+.review-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.star-rating-input {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.star-rating-input label {
+  font-weight: 500;
+  color: #333;
+}
+
+.stars {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.stars .star {
+  cursor: pointer;
+  color: #e0e0e0;
+  transition: transform 0.2s, color 0.2s;
+}
+
+.stars .star:hover {
+  transform: scale(1.1);
+}
+
+.stars .star.filled {
+  color: #ffc107;
+}
+
+.review-text-input {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.review-text-input label {
+  font-weight: 500;
+  color: #333;
+}
+
+.review-text-input textarea {
+  padding: 0.75rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  resize: vertical;
+  font-family: inherit;
+  font-size: 0.9375rem;
+  transition: border-color 0.2s;
+}
+
+.review-text-input textarea:focus {
+  outline: none;
+  border-color: #0071c2;
+}
+
+.btn-primary {
+  background-color: #0071c2;
+  color: white;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 4px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  align-self: flex-start;
+}
+
+.btn-primary:hover {
+  background-color: #005999;
+}
+
+.btn-primary:disabled,
+.btn-primary.submitting {
+  background-color: #7fb5db;
+  cursor: not-allowed;
+}
+
+.error-message {
+  color: #dc3545;
+  font-size: 0.875rem;
+}
+
+.review-form-success {
+  text-align: center;
+  padding: 2rem;
+  animation: fadeIn 0.5s ease;
+}
+
+.review-form-success h3 {
+  color: #198754;
+  margin-bottom: 0.5rem;
+}
+
+.review-form-success p {
+  margin-bottom: 1.5rem;
+  color: #444;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
