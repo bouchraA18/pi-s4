@@ -56,20 +56,43 @@ def api_noms_etablissements(request):
 
 
 # ───────────────────────── search nearby ────────────────────
+from bson import ObjectId
+
+from bson import ObjectId        # already present near the top
+
 class RechercheEtablissements(APIView):
     def get(self, request):
+        # ─── coordinates are mandatory ──────────────────────────
         try:
             lat = float(request.GET.get("lat"))
             lon = float(request.GET.get("lon"))
         except (TypeError, ValueError):
-            return Response({"error": "Latitude et longitude requises."}, 400)
+            return Response({"error": "Latitude et longitude requises."}, status=400)
 
+        # ─── textual filters straight from the query-string ─────
         niveau_q    = request.GET.get("niveau",     "").lower().strip()
         ville_q     = request.GET.get("ville",      "").lower().strip()
         quartier_q  = request.GET.get("quartier",   "").lower().strip()
         formation_q = request.GET.get("formation",  "").lower().strip()
         nom_q       = request.GET.get("nom",        "").lower().strip()
 
+        # specialised case: the autocomplete widget sends an ID
+        localisation_q = request.GET.get("localisation", "").strip()
+
+        # If a localisation ID is supplied, override city / district
+        if localisation_q:
+            try:
+                loc_obj = db.core_localisation.find_one(
+                    {"_id": ObjectId(localisation_q)}
+                )
+                if loc_obj:
+                    ville_q    = loc_obj.get("ville",    "").lower()
+                    quartier_q = loc_obj.get("quartier", "").lower()
+            except Exception:
+                # bad ObjectId or lookup failure ⇒ return empty list
+                return Response([])
+
+        # ─── iterate over validated establishments ──────────────
         results = []
         for etab in db.core_etablissement.find({"validate": True}):
             nom        = etab.get("nom", "")
@@ -80,38 +103,38 @@ class RechercheEtablissements(APIView):
             if not loc_id:
                 continue
             loc = db.core_localisation.find_one({"_id": loc_id}) or {}
-            ville     = loc.get("ville", "")
-            quartier  = loc.get("quartier", "")
 
-            # ---------- filtres ----------
-            if niveau_q    and niveau_q    not in niveau.lower():         continue
-            if ville_q     and ville_q     not in ville.lower():          continue
-            if quartier_q  and quartier_q  not in quartier.lower():       continue
-            if formation_q and formation_q not in formations:             continue
-            if nom_q       and nom_q       not in nom.lower():            continue
-            # --------------------------------
+            ville     = loc.get("ville", "").lower()
+            quartier  = loc.get("quartier", "").lower()
+
+            # ─── all filters in one place ───────────────────────
+            if niveau_q    and niveau_q    not in niveau.lower():   continue
+            if ville_q     and ville_q     not in ville:            continue
+            if quartier_q  and quartier_q  not in quartier:         continue
+            if formation_q and formation_q not in formations:       continue
+            if nom_q       and nom_q       not in nom.lower():      continue
 
             lat2, lon2 = loc.get("latitude"), loc.get("longitude")
             if lat2 is None or lon2 is None:
                 continue
+
             dist = round(haversine(lon, lat, lon2, lat2), 2)
 
             results.append({
-                "id":        str(etab["_id"]),
-                "nom":       nom,
-                "niveau":    niveau,
-                "ville":     ville,
-                "quartier":  quartier,
-                "latitude":  lat2,
-                "longitude": lon2,
-                "distance":  dist,
+                "id":         str(etab["_id"]),
+                "nom":        nom,
+                "niveau":     niveau,
+                "ville":      loc.get("ville", ""),
+                "quartier":   loc.get("quartier", ""),
+                "latitude":   lat2,
+                "longitude":  lon2,
+                "distance":   dist,
                 "formations": etab.get("formations", []),
             })
 
+        # sort by distance & return
         results.sort(key=lambda x: x["distance"])
         return Response(results)
-
-
 
 # ───────────────────────── NEW: detail endpoint ─────────────
 
@@ -174,3 +197,32 @@ def api_ajouter_avis(request, etab_id):
     })
 
     return Response({"success": True})
+
+
+from .models import Localisation
+
+@api_view(["GET"])
+def localisation_autocomplete(request):
+    query = request.GET.get("q", "")
+    results = []
+
+    if query:
+        qs = Localisation.objects.filter(ville__icontains=query) | Localisation.objects.filter(quartier__icontains=query)
+        results = [
+            {"id": loc.id, "label": f"{loc.ville}, {loc.quartier}"}
+            for loc in qs
+        ]
+
+    return Response(results)
+
+
+from .models import Etablissement
+
+@api_view(["GET"])
+def etablissements_autocomplete(request):
+    q = request.GET.get("q", "")
+    results = []
+    if q:
+        qs = Etablissement.objects.filter(nom__icontains=q)
+        results = [e.nom for e in qs[:8]]
+    return Response(results)

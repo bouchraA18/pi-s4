@@ -4,24 +4,19 @@
     "about": "À propos",
     "contact": "Contact"
   },
-
   "topbar": {
     "phone": "📞 (+1) 3344 999 999",
     "email": "✉️ info@edunet.com"
   },
-
   "loading": "Chargement…",
-
   "adresse": {
     "unknown": "Localisation inconnue",
     "error": "Erreur de géolocalisation",
     "denied": "Localisation refusée"
   },
-
   "location": {
     "current": "Localisation actuelle :"
   },
-
   "search": {
     "placeholder_ville": "Toutes villes",
     "placeholder_quartier": "Tous quartiers",
@@ -29,35 +24,43 @@
     "placeholder_formation": "Tous types de formation",
     "button": "Rechercher"
   },
+  "recherche": {
+    "placeholderNom": "Nom, niveau ou type",
+    "placeholderAdresse": "Ville ou quartier",
+    "niveau": "Niveau",
+    "type": "Type",
+    "primaire": "Primaire",
+    "secondaire": "Secondaire",
+    "supérieur": "Supérieur",
+    "publique": "Publique",
+    "privee": "Privée"
+  },
 
+  "errors": {
+  "search": "Erreur lors de la recherche.",
+  "noResults": "Aucun établissement ne correspond à votre recherche."
+},
   "pagination": {
     "prev": "‹ Préc.",
     "next": "Suiv. ›"
   },
-
-  "errors": {
-    "search": "Erreur lors de la recherche."
-  },
-
+ 
   "error_modal": {
     "title": "⚠️ Attention",
     "message": "Veuillez sélectionner au moins un critère de recherche.",
     "close": "Fermer"
   },
-
   "hero": {
-    "headline": "Découvrez les meilleures écoles et instituts autour de vous, en quelques clics.",
+    "headline": "Découvrez les meilleures écoles et instituts autour de   vous, en quelques clics.",
     "subtext": "Edunet vous aide à trouver rapidement un établissement selon votre ville, votre niveau ou votre spécialité grâce à un moteur de recherche intelligent et localisé.",
     "cta": "Trouvez une bonne école."
   },
-
   "results": {
     "title": "Résultats de recherche",
     "distance": "Distance :",
     "ville": "Ville :",
     "niveau": "Niveau :"
   },
-
   "cards": {
     "0": {
       "title": "🎯 Ciblage précis",
@@ -73,3 +76,4 @@
     }
   }
 }
+

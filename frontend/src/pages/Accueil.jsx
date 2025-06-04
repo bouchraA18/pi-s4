@@ -4,6 +4,7 @@
 -------------------------------------------------*/
 import React, { useEffect, useState, useRef } from "react";
 import axios from "axios";
+import { TbMapSearch } from "react-icons/tb";
 import {
   MapContainer,
   TileLayer,
@@ -68,6 +69,23 @@ function Accueil() {
   const [options, setOptions] = useState({
     villes: [], quartiers: [], niveaux: [], formations: []
   });
+  const [filtre, setFiltre] = useState("");
+  const [nom, setNom] = useState("");
+  const [type, setType] = useState("");
+  const [selectedLocalisation, setSelectedLocalisation] = useState(null);
+  const [categorie, setCategorie] = useState("nom");
+  const [etabs, setEtablissements] = useState([]);
+  const [showModal, setShowModal] = useState(false);
+  const [aLanceRecherche, setALanceRecherche] = useState(false);
+  const [etabQuery, setEtabQuery] = useState("");
+  const [etabSuggestions, setEtabSuggestions] = useState([]);
+  const [showFiltres, setShowFiltres] = useState(false);
+  const inputRef = useRef();
+  const containerRef = useRef(null);
+  const [suggestionsNom, setSuggestionsNom] = useState([]);
+  const [suggestionsAdresse, setSuggestionsAdresse] = useState([]);
+  const [hoveredIndex, setHoveredIndex] = useState(null);
+  const [coords, setCoords] = useState({ latitude: null, longitude: null });
 
   const [visibleWords, setVisibleWords] = useState(0);
   const [showErr, setShowErr] = useState(false);
@@ -80,7 +98,6 @@ function Accueil() {
   const niveauRef = useRef(null);
 
   /* ─── results state ─────────────────────────────── */
-  const [etabs,        setEtabs]        = useState([]);
   const [loading,      setLoading]      = useState(false);
   const [currentPage,  setCurrentPage]  = useState(1);
   const ITEMS_PER_PAGE = 5;
@@ -90,6 +107,7 @@ function Accueil() {
     currentPage * ITEMS_PER_PAGE
   );
   const positions      = etabs.map((e) => [e.latitude, e.longitude]);
+  const [noResult,     setNoResult]     = useState(false);
 
   /* ─── headline typing effect ─────────────────────── */
   useEffect(() => {
@@ -101,36 +119,142 @@ function Accueil() {
   }, [t]);
 
   /* ─── current location pretty name ───────────────── */
-  useEffect(() => {
-    if (!navigator.geolocation) return;
+useEffect(() => {
+
+  if ("geolocation" in navigator) {
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
         const { latitude, longitude } = pos.coords;
+        console.log("📍 Position détectée :", latitude, longitude);
+        setCoords({ latitude, longitude });
         try {
-          const { data } = await axios.get(
-            "https://nominatim.openstreetmap.org/reverse",
-            { params: { lat: latitude, lon: longitude, format: "json" } }
+          const res = await axios.get(
+            `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json&addressdetails=1`
           );
-          const a = data.address;
-          setAdresse(
-            a.neighbourhood || a.suburb || a.road || a.city_district ||
-            a.village      || a.city   || a.town || t("adresse.unknown")
-          );
-        } catch {
+
+          const addr = res.data.address;
+          const ville =
+            addr.city ||
+            addr.town ||
+            addr.village ||
+            addr.state ||
+            t("adresse.unknown");
+
+          const quartier =
+            addr.neighbourhood ||
+            addr.suburb ||
+            addr.city_district ||
+            "";
+
+          const localisation = quartier ? `${ville}, ${quartier}` : ville;
+
+          setAdresse(localisation);
+        } catch (err) {
+          console.error("Erreur géolocalisation :", err);
           setAdresse(t("adresse.error"));
         }
       },
-      () => setAdresse(t("adresse.denied"))
+      () => {
+        setAdresse(t("adresse.denied"));
+      }
     );
-  }, [t]);
+  } 
+}, []);
+
+useEffect(() => {
+  if (adresse) {
+    setFiltre(adresse);
+  }
+}, [adresse]);
+
+// -------------------menuetablissement------------------
+
+useEffect(() => {
+  const handleClickOutside = (event) => {
+    if (containerRef.current && !containerRef.current.contains(event.target)) {
+      setShowFiltres(false);
+      setSuggestionsNom([]);
+    }
+  };
+
+  document.addEventListener("mousedown", handleClickOutside);
+  return () => {
+    document.removeEventListener("mousedown", handleClickOutside);
+  };
+}, []);
+
+// --------------autocompletion localisation-----------------------
+const handleAdresseChange = async (e) => {
+  const value = e.target.value;
+  setFiltre(value);
+
+  if (value.length < 1) {
+    setSuggestionsAdresse([]);
+    setSelectedLocalisation(null);
+    return;
+  }
+
+  try {
+    const res = await axios.get("http://localhost:8000/api/localisation-autocomplete/", {
+      params: { q: value }
+    });
+    setSuggestionsAdresse(res.data);
+    // Vérifie si une des suggestions correspond exactement au texte saisi
+    const match = res.data.find((s) => s.label.toLowerCase() === value.toLowerCase());
+    if (match) {
+      setSelectedLocalisation(match.id);
+    } else {
+      setSelectedLocalisation(null); // l'utilisateur a tapé autre chose
+}
+  } catch (err) {
+    console.error("❌ Erreur API localisation autocomplete :", err.message);
+    setSuggestionsAdresse([]);
+  }
+};
+
+useEffect(() => {
+  if (filtre && !selectedLocalisation) {
+    const fetchIdFromValeurDefaut = async () => {
+      try {
+        const res = await axios.get("http://localhost:8000/api/localisation-autocomplete/", {
+          params: { q: filtre }
+        });
+
+        const match = res.data.find((s) => s.label.toLowerCase() === filtre.toLowerCase());
+        if (match) {
+          setSelectedLocalisation(match.id);
+        }
+      } catch (err) {
+        console.error("❌ Erreur lors du chargement initial de l’ID localisation :", err.message);
+      }
+    };
+
+    fetchIdFromValeurDefaut();
+  }
+}, [filtre, selectedLocalisation]);
+
+// ------etablissement autocomplet------------------
+useEffect(() => {
+  if (etabQuery.length >= 1) {
+    axios.get(`http://localhost:8000/api/etablissements-autocomplete/`, {
+      params: { q: etabQuery }
+    })
+    .then(res => setEtabSuggestions(res.data))
+    .catch(() => setEtabSuggestions([]));
+  } else {
+    setEtabSuggestions([]);
+  }
+}, [etabQuery]);
+
+
 
   /* ─── fetch villes + niveaux + quartiers + formations ───── */
-  useEffect(() => {
-    axios
-      .get("http://localhost:8000/api/metadata/")
-      .then((res) => setOptions(res.data))
-      .catch(() => console.warn("Échec du chargement des métadonnées."));
-  }, []);
+  // useEffect(() => {
+  //   axios
+  //     .get("http://localhost:8000/api/metadata/")
+  //     .then((res) => setOptions(res.data))
+  //     .catch(() => console.warn("Échec du chargement des métadonnées."));
+  // }, []);
 
   /* ─── suggestions filtering ─────────────────────── */
   useEffect(() => {
@@ -172,48 +296,72 @@ function Accueil() {
   }, []);
 
   /* ─── search helper (LOCAL display) ─────────────── */
-  const rechercher = async () => {
-    if (!villeBase && !ville && !niveauBase && !niveau) {
-      setShowErr(true);
-      return;
-    }
+const rechercher = async () => {
+  if (!nom.trim() && !niveau.trim() && !type.trim() && !filtre.trim()) {
+    setShowErr(true);
+    return;
+  }
 
-    try {
-      setLoading(true);
-      const pos = await new Promise((ok, ko) =>
-        navigator.geolocation.getCurrentPosition(ok, ko)
-      );
-      const { latitude, longitude } = pos.coords;
-      const params = { lat: latitude, lon: longitude };
+  setLoading(true);
+  setCurrentPage(1);
 
-      if (villeBase)             params.ville      = villeBase;
-      if (villeFixe && ville)    params.quartier   = ville;
-      if (niveauBase)            params.niveau     = niveauBase;
-      if (niveauFixe && niveau)  params.formation  = niveau;
+  // build query-string params for the search
+  const params = {};
 
-      const { data } = await axios.get(
-        "http://localhost:8000/api/recherche/",
-        { params }
-      );
-      setEtabs(data);
-      setCurrentPage(1);
-    } catch (err) {
-      alert(t("errors.search"));
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
+  // 1) suggestion already selected → we have its ID
+  if (selectedLocalisation) {
+    params.localisation = selectedLocalisation;
+
+  // 2) user typed text → split "Ville, Quartier"
+  } else if (filtre.trim()) {
+    const [villePart, quartierPart] = filtre.split(",").map(s => s.trim());
+    if (villePart)    params.ville    = villePart;
+    if (quartierPart) params.quartier = quartierPart;
+  }
+
+  // keep the existing category-based filters
+  if (categorie === "nom")    params.nom    = nom.trim();
+  if (categorie === "niveau") params.niveau = nom.trim();
+  if (categorie === "type")   params.type   = nom.trim();
+
+  // optional GPS coordinates (distance sorting)
+  if (coords && coords.latitude != null && coords.longitude != null) {
+    params.lat = coords.latitude;
+    params.lon = coords.longitude;
+  }
+
+  try {
+    console.log("🔍 Params going to /api/recherche:", params);
+    const res = await axios.get("http://localhost:8000/api/recherche/", { params });
+
+    setEtablissements(res.data);
+    setNoResult(res.data.length === 0);          // 👈 NEW
+    setVille(filtre || t("recherche.zoneParDefaut"));
+    setShowModal(true);
+    setALanceRecherche(true);
+    setLoading(false);
+  } catch (err) {
+    console.error("❌ Erreur API recherche :", err.message);
+    setEtablissements([]);
+    setNoResult(false);                          // 👈 NEW
+    setVille(filtre || t("recherche.zoneParDefaut"));
+    setShowModal(true);
+    setALanceRecherche(true);
+    setLoading(false);
+  }
+};
+
+
 
   /* ─── static icon (kept outside render) ─────────── */
-  const SearchIcon = (
-    <svg width="22" height="22" viewBox="0 0 24 24"
-         fill="none" stroke="#ffffff" strokeWidth="2"
-         strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="11" cy="11" r="7" />
-      <line x1="16.65" y1="16.65" x2="22" y2="22" />
-    </svg>
-  );
+  // const SearchIcon = (
+  //   <svg width="22" height="22" viewBox="0 0 24 24"
+  //        fill="none" stroke="#ffffff" strokeWidth="2"
+  //        strokeLinecap="round" strokeLinejoin="round">
+  //     <circle cx="11" cy="11" r="7" />
+  //     <line x1="16.65" y1="16.65" x2="22" y2="22" />
+  //   </svg> 
+  // );
 
   const headline = t("hero.headline");
   const isAr = i18n.language === "ar";
@@ -263,16 +411,22 @@ function Accueil() {
           flexWrap: "wrap",
           gap: "48px",
           padding: "64px 48px 32px",
+          
         }}
       >
         {/* left column */}
-        <div style={{ flex: "1 1 480px", minWidth: "320px" }}>
+        <div style={{ flex: "1 1 480px", minWidth: "320px", marginTop: "100px" }}>
           <h2
             style={{
               fontSize: "2.4rem",
               color: "#003580",
               lineHeight: 1.3,
               margin: "0 0 16px",
+              marginBottom: "35px",
+              fontWeight: "bold",
+              wordWrap: "break-word",
+              overflowWrap: "break-word",
+              whiteSpace: "normal",
             }}
           >
             {isAr
@@ -297,195 +451,293 @@ function Accueil() {
               lineHeight: 1.7,
               margin: "0 0 24px",
               color: "#1a1a1a",
+
             }}
           >
             {t("hero.subtext")}
           </p>
 
-          <h1 style={{ fontSize: "2.6rem", color: "#003580", margin: "0 0 24px" }}>
+          <h1 style={{ fontSize: "2.6rem", color: "#003580", margin: "0 0 24px",fontWeight: "bold" }}>
             {t("hero.cta")}
           </h1>
 
-          {/* SEARCH BAR ------------------------------------------------ */}
+          {/* ---------------------------------SEARCH BAR ------------------------------------------------ */}
           <div
             style={{
-              position: "relative",
               display: "flex",
+              alignItems: "center",
+              backgroundColor: "white",
+              borderRadius: "10px",
+              boxShadow: "0 2px 6px rgba(0,0,0,0.1)",
+              marginBottom: "1rem",
+              padding: "0.5rem",
+              gap: "1rem",
+              maxWidth: "700px",
               width: "100%",
-              maxWidth: 700,
-              background: "#fff",
-              border: "1px solid #ddd",
-              borderRadius: 12,
-              boxShadow: "0 3px 8px rgba(0,0,0,.08)",
-              overflow: "visible",
             }}
           >
-            {/* ville / quartier */}
-            <div style={{ flex: 1, position: "relative" }} ref={villeRef}>
+            {/* Nom avec auto-complétion */}
+            <div ref={containerRef} style={{ position: "relative", flex: 1 }}>
               <input
-                value={ville}
-                onFocus={() => setFocusOn("ville")}
-                onChange={(e) => {
-                  const v=e.target.value;
-                  setVille(v);
-                  setFocusOn("ville");
-                  if(villeFixe && v===""){ setVilleFixe(false); setVilleBase(""); }
+                type="search"
+                ref={inputRef}
+                placeholder={t("recherche.placeholderNom")}
+                value={nom}
+                onFocus={() => {
+                  if (typeof nom === "string" && nom.trim() === "") {
+                    setShowFiltres(true);
+                  }
                 }}
-                placeholder={villeFixe ? t("search.placeholder_quartier") : t("search.placeholder_ville")}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setNom(value);
+                  setCategorie("nom");
+
+                  if (value.trim().length === 0) {
+                    setSuggestionsNom([]);
+                    setShowFiltres(true);
+                  } else {
+                    setShowFiltres(false);
+                    axios
+                      .get("http://localhost:8000/api/etablissements-autocomplete/", {
+                        params: { q: value },
+                      })
+                      .then((res) => setSuggestionsNom(res.data))
+                      .catch(() => setSuggestionsNom([]));
+                  }
+                }}
                 style={{
                   width: "100%",
-                  border: "none",
-                  outline: "none",
-                  padding: "16px 20px",
+                  minWidth: "200px",
+                  padding: "1rem",
                   fontSize: "1rem",
-                  borderRadius: "12px 0 0 12px",
+                  border: "none",
+                  borderLeft: "1px solid #ddd",
+                  borderRadius: "8px",
+                  outline: "none",
                 }}
               />
-              {focusOn === "ville" && villeSug.length > 0 && (
+
+              {/* Suggestions d’établissements */}
+              {suggestionsNom.length > 0 && (
                 <ul
                   style={{
                     position: "absolute",
                     top: "100%",
                     left: 0,
                     right: 0,
-                    background: "#fff",
-                    color: "#000",
-                    boxShadow: "0 6px 18px rgba(0,0,0,.15)",
+                    backgroundColor: "white",
+                    border: "1px solid #ccc",
+                    borderRadius: "0 0 8px 8px",
+                    maxHeight: "200px",
+                    overflowY: "auto",
+                    zIndex: 1000,
                     listStyle: "none",
                     margin: 0,
-                    padding: "4px 0",
-                    maxHeight: 240,
-                    overflowY: "auto",
-                    borderRadius: "0 0 12px 12px",
-                    zIndex: 999,
+                    padding: 0,
                   }}
                 >
-                  {villeSug.map((v) => (
+                  {suggestionsNom.map((item, index) => (
                     <li
-                      key={v}
-                      onMouseDown={() => {
-                        if(!villeFixe && options.villes.includes(v)){
-                          setVilleFixe(true); setVilleBase(v); setVille("");
-                        }else{
-                          setVille(v); setFocusOn(null);
-                        }
+                      key={index}
+                      onClick={() => {
+                        setNom(item);
+                        setSuggestionsNom([]);
+                        setShowFiltres(false);
+                      }}
+                      onMouseEnter={() => setHoveredIndex(index)}
+                      onMouseLeave={() => setHoveredIndex(null)}
+                      style={{
+                        padding: "0.8rem",
+                        cursor: "pointer",
+                        borderBottom: "1px solid #eee",
+                        backgroundColor: hoveredIndex === index ? "#f0f8ff" : "white",
+                      }}
+                    >
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              {/* Menu déroulant des filtres */}
+              {showFiltres && suggestionsNom.length === 0 && (
+                <div
+                  style={{
+                    position: "absolute",
+                    top: "100%",
+                    left: 0,
+                    right: 0,
+                    backgroundColor: "#fff",
+                    border: "1px solid #ccc",
+                    padding: "1rem",
+                    zIndex: 999,
+                    borderRadius: "0 0 10px 10px",
+                    boxShadow: "0 4px 10px rgba(0,0,0,0.1)",
+                  }}
+                >
+                  <div style={{ marginBottom: "1rem" }}>
+                    <div
+                      style={{
+                        color: "#666",
+                        fontSize: "0.8rem",
+                        marginBottom: "0.5rem",
+                      }}
+                    >
+                      {t("recherche.niveau")}
+                    </div>
+                    {[t("recherche.primaire"), t("recherche.secondaire"), t("recherche.supérieur")].map(
+                      (n, index) => (
+                        <div
+                          key={n}
+                          onClick={() => {
+                            setNiveau(n);
+                            setCategorie("niveau");
+                            setNom(n);
+                            setShowFiltres(false);
+                          }}
+                          onMouseEnter={() => setHoveredIndex(index)}
+                          onMouseLeave={() => setHoveredIndex(null)}
+                          style={{
+                            padding: "0.5rem",
+                            cursor: "pointer",
+                            backgroundColor:
+                              hoveredIndex === index
+                                ? "#f0f8ff"
+                                : niveau === n
+                                ? "#e6f0ff"
+                                : "transparent",
+                            borderRadius: "6px",
+                          }}
+                        >
+                          {n}
+                        </div>
+                      )
+                    )}
+                  </div>
+
+                  <div>
+                    <div
+                      style={{
+                        color: "#666",
+                        fontSize: "0.8rem",
+                        marginBottom: "0.5rem",
+                      }}
+                    >
+                      {t("recherche.type")}
+                    </div>
+                    {[t("recherche.publique"), t("recherche.privee")].map((t_, index) => (
+                      <div
+                        key={t_}
+                        onClick={() => {
+                          setType(t_);
+                          setCategorie("type");
+                          setNom(t_);
+                          setShowFiltres(false);
+                        }}
+                        onMouseEnter={() => setHoveredIndex(index + 10)}
+                        onMouseLeave={() => setHoveredIndex(null)}
+                        style={{
+                          padding: "0.5rem",
+                          cursor: "pointer",
+                          backgroundColor:
+                            hoveredIndex === index + 10
+                              ? "#f0f8ff"
+                              : type === t_
+                              ? "#e6f0ff"
+                              : "transparent",
+                          borderRadius: "6px",
+                        }}
+                      >
+                        {t_}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div style={{ flex: 1, position: "relative" }}>
+              <input
+                type="search"
+                id="search-filtre"
+                placeholder={t("recherche.placeholderAdresse")}
+                value={filtre}
+                onChange={handleAdresseChange}
+                style={{
+                  width: "100%",
+                  minWidth: "160px",
+                  padding: "1rem",
+                  fontSize: "1rem",
+                  border: "none",
+                  borderLeft: "1px solid #ddd",
+                  borderRadius: "8px",
+                  outline: "none",
+                }}
+              />
+              {suggestionsAdresse.length > 0 && (
+                <ul
+                  style={{
+                    position: "absolute",
+                    top: "100%",
+                    left: 0,
+                    right: 0,
+                    backgroundColor: "white",
+                    border: "1px solid #ccc",
+                    borderRadius: "0 0 8px 8px",
+                    maxHeight: "200px",
+                    overflowY: "auto",
+                    zIndex: 1000,
+                    listStyle: "none",
+                    margin: 0,
+                    padding: 0,
+                  }}
+                >
+                  {suggestionsAdresse.map((sugg, index) => (
+                    <li
+                      key={index}
+                      onClick={() => {
+                        setFiltre(sugg.label);
+                        setSelectedLocalisation(sugg.id);
+                        setSuggestionsAdresse([]);
+                        document.getElementById("search-filtre").focus();
                       }}
                       style={{
-                        padding: "10px 20px",
+                        padding: "0.8rem 1rem",
                         cursor: "pointer",
-                        fontWeight: 600,
+                        borderBottom: "1px solid #eee",
                       }}
-                      onMouseEnter={(e) =>
-                        (e.currentTarget.style.background = "#f0f4ff")
-                      }
-                      onMouseLeave={(e) =>
-                        (e.currentTarget.style.background = "transparent")
-                      }
                     >
-                      {v}
+                      {sugg.label}
                     </li>
                   ))}
                 </ul>
               )}
             </div>
 
-            {/* niveau / formation */}
-            <div
-              style={{ flex: 1, position: "relative", borderLeft: "1px solid #ddd" }}
-              ref={niveauRef}
-            >
-              <input
-                value={niveau}
-                onFocus={() => setFocusOn("niveau")}
-                onChange={(e) => {
-                  const n=e.target.value;
-                  setNiveau(n);
-                  setFocusOn("niveau");
-                  if(niveauFixe && n===""){ setNiveauFixe(false); setNiveauBase(""); }
-                }}
-                placeholder={niveauFixe ? t("search.placeholder_formation") : t("search.placeholder_niveau")}
-                style={{
-                  width: "100%",
-                  border: "none",
-                  outline: "none",
-                  padding: "16px 20px",
-                  fontSize: "1rem",
-                }}
-              />
-              {focusOn === "niveau" && niveauSug.length > 0 && (
-                <ul
-                  style={{
-                    position: "absolute",
-                    top: "100%",
-                    left: 0,
-                    right: 0,
-                    background: "#fff",
-                    color: "#000",
-                    boxShadow: "0 6px 18px rgba(0,0,0,.15)",
-                    listStyle: "none",
-                    margin: 0,
-                    padding: "4px 0",
-                    maxHeight: 240,
-                    overflowY: "auto",
-                    borderRadius: "0 0 12px 12px",
-                    zIndex: 999,
-                  }}
-                >
-                  {niveauSug.map((n) => (
-                    <li
-                      key={n}
-                      onMouseDown={() => {
-                        if(!niveauFixe && options.niveaux.includes(n)){
-                          setNiveauFixe(true); setNiveauBase(n); setNiveau("");
-                        }else{
-                          setNiveau(n); setFocusOn(null);
-                        }
-                      }}
-                      style={{ padding: "10px 20px", cursor: "pointer" }}
-                      onMouseEnter={(e) =>
-                        (e.currentTarget.style.background = "#f0f4ff")
-                      }
-                      onMouseLeave={(e) =>
-                        (e.currentTarget.style.background = "transparent")
-                      }
-                    >
-                      {n.charAt(0).toUpperCase() + n.slice(1)}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-
-            {/* search button */}
             <button
               onClick={rechercher}
               style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                padding: "0 35px",
+                backgroundColor: "#007bff",
+                color: "white",
+                padding: "0.5rem 1rem",
                 border: "none",
-                outline: "none",
-                background: "#007bff",
-                color: "#fff",
-                borderRadius: "0 12px 12px 0",
+                borderRadius: "8px",
+                fontSize: "1.2rem",
                 cursor: "pointer",
-                transition: "background .2s",
               }}
-              onMouseEnter={(e) =>
-                (e.currentTarget.style.background = "#0064d4")
-              }
-              onMouseLeave={(e) =>
-                (e.currentTarget.style.background = "#007bff")
-              }
-              aria-label={t("search.button")}
             >
-              {SearchIcon}
+              <TbMapSearch size={28} />
             </button>
           </div>
 
-          {/* pills */}
-          <div style={{ display: "flex", gap: 8, marginTop: 16, flexWrap: "wrap" }}>
+
+
+
+
+          {/* -------------------- pills ------------------------- */}
+          
+          {/* <div style={{ display: "flex", gap: 8, marginTop: 16, flexWrap: "wrap" }}>
             {options.niveaux.map((n) => (
               <button
                 key={n}
@@ -509,10 +761,10 @@ function Accueil() {
                 {n.charAt(0).toUpperCase() + n.slice(1)}
               </button>
             ))}
-          </div>
+          </div> */}
 
           {/* location */}
-          <div
+          {/* <div
             style={{
               marginTop: 16,
               display: "inline-flex",
@@ -526,7 +778,7 @@ function Accueil() {
             }}
           >
             <strong>{t("location.current")}</strong> {adresse}
-          </div>
+          </div> */}
         </div>
 
         {/* illustration */}
@@ -539,10 +791,15 @@ function Accueil() {
 
       {/* RESULTS BLOCK (appears after first search) */}
       {loading ? (
-        <p style={{ textAlign: "center" }}>{t("loading")}</p>
+  <p style={{ textAlign: "center" }}>{t("loading")}</p>
+) : noResult ? (
+  <p style={{ textAlign: "center", fontStyle: "italic", marginTop: 40 }}>
+    {t("errors.noResults") ||
+      "Aucun établissement ne correspond à votre recherche."}
+  </p>
       ) : etabs.length === 0 ? null : (
         <>
-          <h2 style={{ textAlign: "center", color: "#003580", margin: "1rem 0" }}>
+          <h2 style={{ textAlign: "center", color: "#cc0000", margin: "1rem 0" }}>
             {t("results.title")}
           </h2>
 
@@ -558,6 +815,35 @@ function Accueil() {
               }}
             >
               <div style={{ flex: 1, overflowY: "auto", paddingRight: "1rem" }}>
+                {noResult && (
+  <div
+    style={{
+      display: "flex",
+      justifyContent: "center",
+      alignItems: "center",
+      padding: "60px 0",
+    }}
+  >
+    <p
+      style={{
+        background: "#fff3cd",          // light yellow
+        color: "#cc0000",                         // dark amber text
+        border: "1px solid #ffeeba",
+        borderRadius: 8,
+        padding: "20px 32px",
+        fontSize: "1.15rem",
+        fontWeight: 500,
+        margin: 0,
+        boxShadow: "0 2px 6px rgba(0,0,0,.1)",
+      }}
+    >
+      {t("errors.noResults", "Aucun résultat trouvé.")}
+    </p>
+  </div>
+)}
+
+
+
                 {paginated.map((e) => (
                   <div
                     key={e.id}
@@ -588,8 +874,13 @@ function Accueil() {
                       <strong>{t("results.distance")}</strong> {e.distance} km
                     </p>
                     <p style={{ margin: "0.5rem 0" }}>
-                      <strong>{t("results.ville")}</strong> {e.ville}
+                      <strong>Ville :</strong> {e.ville}
                     </p>
+                    <p style={{ margin: "0.5rem 0" }}>
+                      <strong>Quartier :</strong> {e.quartier}
+                    </p>
+
+
                     <p style={{ margin: "0.5rem 0" }}>
                       <strong>{t("results.niveau")}</strong> {e.niveau}
                     </p>
@@ -666,16 +957,24 @@ function Accueil() {
                   url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                   attribution="&copy; OpenStreetMap contributors"
                 />
-                <FitBounds positions={positions} />
-                {etabs.map((e) => (
-                  <Marker key={e.id} position={[e.latitude, e.longitude]}>
-                    <Popup>
-                      <strong>{e.nom}</strong>
-                      <br />
-                      {e.ville}
-                    </Popup>
-                  </Marker>
-                ))}
+                <FitBounds
+  positions={etabs
+    .filter(e => e.localisation?.latitude != null && e.localisation?.longitude != null)
+    .map(e => [e.localisation.latitude, e.localisation.longitude])
+  }
+/>
+{etabs
+  .filter(e => e.localisation?.latitude != null && e.localisation?.longitude != null)
+  .map((e) => (
+    <Marker key={e.id} position={[e.localisation.latitude, e.localisation.longitude]}>
+      <Popup>
+        <strong>{e.nom}</strong>
+        <br />
+        {e.ville}
+      </Popup>
+    </Marker>
+))}
+
               </MapContainer>
             </div>
           </div>
@@ -727,6 +1026,9 @@ function Accueil() {
         </div>
       )}
 
+
+
+
       {/* 🔽 Section des cartes explicatives jolies avec effet lumineux */}
 <div style={{
   display: "flex",
@@ -736,21 +1038,21 @@ function Accueil() {
   padding: "5rem 2rem",
 }}>
   {[
-    {
-      titre: "🎯 Ciblage précis",
-      texte: "Trouvez les établissements correspondant à votre niveau ou spécialité. La plateforme vous guide intelligemment vers les options qui vous correspondent le mieux.",
-      image: "/images/1106.jpg"
-    },
-    {
-      titre: "📍 Localisation intelligente",
-      texte: "Notre moteur détecte automatiquement votre position pour vous proposer les établissements les plus proches et adaptés à vos besoins.",
-      image: "/images/c2.png"
-    },
-    {
-      titre: "🚀 Accès rapide",
-      texte: "Obtenez des résultats instantanés et précis sans remplir de longs formulaires. L'accès à l'information devient simple et rapide.",
-      image: "/images/c3.jpg"
-    }
+     {
+    titre: t("cards.0.title"),
+    texte: t("cards.0.text"),
+    image: "/images/1106.jpg"
+  },
+  {
+    titre: t("cards.1.title"),
+    texte: t("cards.1.text"),
+    image: "/images/c2.png"
+  },
+  {
+    titre: t("cards.2.title"),
+    texte: t("cards.2.text"),
+    image: "/images/c3.jpg"
+  },
   ].map((item, index) => (
     <div key={index} style={{
       width: "400px",

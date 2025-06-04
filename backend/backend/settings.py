@@ -3,7 +3,6 @@ Django settings – pure MongoDB / REST-only
 """
 
 from pathlib import Path
-from pymongo import MongoClient   # ← for easy access anywhere
 
 
 REST_FRAMEWORK = {
@@ -47,11 +46,18 @@ WSGI_APPLICATION = "backend.wsgi.application"
 
 # ───────── No SQL DB – dummy backend ─────────
 DATABASES = {
-    "default": { "ENGINE": "django.db.backends.dummy" }
+    'default': {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': 'monprojetdb',
+        'USER': 'mk',
+        'PASSWORD': '1234',
+        'HOST': 'localhost',
+        'PORT': '5432',
+    }
 }
 
 # tell Django not to look for migration files
-MIGRATION_MODULES = {"core": None}
+#MIGRATION_MODULES = {"core": None}
 
 # ───────── Internationalisation / etc. ─────────
 LANGUAGE_CODE = "en-us"
@@ -69,5 +75,3 @@ CORS_ALLOW_ALL_ORIGINS = True
 MEDIA_URL  = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
-# ───────── Global Mongo client ─────────
-MONGO = MongoClient("mongodb://localhost:27017")["monprojetdb"]
