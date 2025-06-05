@@ -1,22 +1,28 @@
 # core/views.py
-from rest_framework.decorators import api_view
-from rest_framework.views      import APIView
-from rest_framework.response   import Response
-from pymongo                   import MongoClient
-from bson                      import ObjectId        # NEW
+from datetime import datetime
 from math import radians, cos, sin, asin, sqrt
+
+from rest_framework.decorators import api_view
+from rest_framework.response    import Response
+from rest_framework.views       import APIView
+
+from .models import (
+    Etablissement,
+    Localisation,
+    Formation,
+    Avis,
+    Utilisateur,
+)
+from .serializers import EtablissementSerializer
+
 
 # ───────────────────────── helpers ──────────────────────────
 def haversine(lon1, lat1, lon2, lat2):
-    R = 6371  # km
+    R = 6371
     lon1, lat1, lon2, lat2 = map(radians, (lon1, lat1, lon2, lat2))
     dlon, dlat = lon2 - lon1, lat2 - lat1
     a = sin(dlat / 2) ** 2 + cos(lat1) * cos(lat2) * sin(dlon / 2) ** 2
     return R * 2 * asin(sqrt(a))
-
-# ───────────────────────── Mongo client ─────────────────────
-mongo = MongoClient("mongodb://localhost:27017")
-db    = mongo["monprojetdb"]
 
 
 # ───────────────────────── metadata list ────────────────────
@@ -24,156 +30,112 @@ db    = mongo["monprojetdb"]
 def api_metadata(request):
     niveaux = ["pré-scolaire", "primaire", "collège", "lycée", "supérieur"]
 
-    villes = sorted({d.get("ville")
-                     for d in db.core_localisation.find({}, {"ville": 1}) if d.get("ville")})
+    villes = (
+        Localisation.objects
+        .exclude(ville__isnull=True)
+        .values_list("ville", flat=True)
+        .distinct()
+        .order_by("ville")
+    )
 
-    quartiers = sorted({d.get("quartier")
-                        for d in db.core_localisation.find({}, {"quartier": 1}) if d.get("quartier")})
+    quartiers = (
+        Localisation.objects
+        .exclude(quartier__isnull=True)
+        .values_list("quartier", flat=True)
+        .distinct()
+        .order_by("quartier")
+    )
 
-    # formations est un tableau -> on aplatit
-    formations = sorted({f
-                         for d in db.core_etablissement.find({}, {"formations": 1})
-                         for f in d.get("formations", [])})
+    formations = (
+        Formation.objects
+        .values_list("intitule", flat=True)
+        .distinct()
+        .order_by("intitule")
+    )
 
     return Response({
         "niveaux":     niveaux,
-        "villes":      villes,
-        "quartiers":   quartiers,
-        "formations":  formations,
+        "villes":      list(villes),
+        "quartiers":   list(quartiers),
+        "formations":  list(formations),
     })
 
 
 # ───────────────────────── names list ───────────────────────
 @api_view(["GET"])
 def api_noms_etablissements(request):
-    noms = [
-        doc["nom"]
-        for doc in db.core_etablissement.find(
-            {"validate": True}, {"nom": 1, "_id": 0}
-        ).sort("nom", 1)
-    ]
-    return Response(noms)
+    noms = (
+        Etablissement.objects
+        .filter(validate=True)
+        .order_by("nom")
+        .values_list("nom", flat=True)
+    )
+    return Response(list(noms))
 
 
 # ───────────────────────── search nearby ────────────────────
-from bson import ObjectId
-
-from bson import ObjectId        # already present near the top
-
 class RechercheEtablissements(APIView):
     def get(self, request):
-        # ─── coordinates are mandatory ──────────────────────────
+        # ① coords required
         try:
             lat = float(request.GET.get("lat"))
             lon = float(request.GET.get("lon"))
         except (TypeError, ValueError):
             return Response({"error": "Latitude et longitude requises."}, status=400)
 
-        # ─── textual filters straight from the query-string ─────
+        # ② textual filters
         niveau_q    = request.GET.get("niveau",     "").lower().strip()
         ville_q     = request.GET.get("ville",      "").lower().strip()
         quartier_q  = request.GET.get("quartier",   "").lower().strip()
         formation_q = request.GET.get("formation",  "").lower().strip()
         nom_q       = request.GET.get("nom",        "").lower().strip()
 
-        # specialised case: the autocomplete widget sends an ID
-        localisation_q = request.GET.get("localisation", "").strip()
+        # ③ base queryset → only approved
+        qs = (
+            Etablissement.objects
+            .filter(validate=True)
+            .select_related("localisation")
+            .prefetch_related("formations")
+        )
 
-        # If a localisation ID is supplied, override city / district
-        if localisation_q:
-            try:
-                loc_obj = db.core_localisation.find_one(
-                    {"_id": ObjectId(localisation_q)}
-                )
-                if loc_obj:
-                    ville_q    = loc_obj.get("ville",    "").lower()
-                    quartier_q = loc_obj.get("quartier", "").lower()
-            except Exception:
-                # bad ObjectId or lookup failure ⇒ return empty list
-                return Response([])
+        # ④ apply filters
+        if niveau_q:
+            qs = qs.filter(niveau__icontains=niveau_q)
+        if nom_q:
+            qs = qs.filter(nom__icontains=nom_q)
+        if ville_q or quartier_q:
+            qs = qs.filter(localisation__isnull=False)
+            if ville_q:
+                qs = qs.filter(localisation__ville__icontains=ville_q)
+            if quartier_q:
+                qs = qs.filter(localisation__quartier__icontains=quartier_q)
+        if formation_q:
+            qs = qs.filter(formations__intitule__icontains=formation_q)
 
-        # ─── iterate over validated establishments ──────────────
+        # ⑤ build response with distances
         results = []
-        for etab in db.core_etablissement.find({"validate": True}):
-            nom        = etab.get("nom", "")
-            niveau     = etab.get("niveau", "")
-            formations = [f.lower() for f in etab.get("formations", [])]
-
-            loc_id = etab.get("localisation_id")
-            if not loc_id:
+        for etab in qs:
+            loc = etab.localisation
+            if not loc or loc.latitude is None or loc.longitude is None:
                 continue
-            loc = db.core_localisation.find_one({"_id": loc_id}) or {}
-
-            ville     = loc.get("ville", "").lower()
-            quartier  = loc.get("quartier", "").lower()
-
-            # ─── all filters in one place ───────────────────────
-            if niveau_q    and niveau_q    not in niveau.lower():   continue
-            if ville_q     and ville_q     not in ville:            continue
-            if quartier_q  and quartier_q  not in quartier:         continue
-            if formation_q and formation_q not in formations:       continue
-            if nom_q       and nom_q       not in nom.lower():      continue
-
-            lat2, lon2 = loc.get("latitude"), loc.get("longitude")
-            if lat2 is None or lon2 is None:
-                continue
-
-            dist = round(haversine(lon, lat, lon2, lat2), 2)
-
+            dist = round(haversine(lon, lat, loc.longitude, loc.latitude), 2)
             results.append({
-                "id":         str(etab["_id"]),
-                "nom":        nom,
-                "niveau":     niveau,
-                "ville":      loc.get("ville", ""),
-                "quartier":   loc.get("quartier", ""),
-                "latitude":   lat2,
-                "longitude":  lon2,
+                "id":         etab.id,
+                "nom":        etab.nom,
+                "niveau":     etab.niveau,
+                "ville":      loc.ville,
+                "quartier":   loc.quartier,
+                "latitude":   loc.latitude,
+                "longitude":  loc.longitude,
                 "distance":   dist,
-                "formations": etab.get("formations", []),
+                "formations": [f.intitule for f in etab.formations.all()],
             })
 
-        # sort by distance & return
         results.sort(key=lambda x: x["distance"])
         return Response(results)
 
-# ───────────────────────── NEW: detail endpoint ─────────────
 
-
-# ─── detail endpoint ─────────────────────────────
-@api_view(["GET"])
-def api_etablissement_detail(request, etab_id):
-    etab = db.core_etablissement.find_one({"_id": ObjectId(etab_id), "validate": True})
-    if not etab:
-        return Response({"error": "Établissement introuvable."}, status=404)
-
-    loc = db.core_localisation.find_one({"_id": etab.get("localisation_id")}) or {}
-
-    data = {
-        "id":         str(etab["_id"]),
-        "nom":        etab["nom"],
-        "telephone":  etab.get("telephone"),
-        "niveau":     etab.get("niveau"),
-        "description":etab.get("description"),
-        "site":       etab.get("site", ""),
-        "ville":      loc.get("ville"),
-        "latitude":   loc.get("latitude"),
-        "longitude":  loc.get("longitude"),
-        "photo_urls": etab.get("photo_urls", []),
-        "formations": etab.get("formations", []),
-        "avis": [
-            {
-                "user":        a.get("auteur", "Utilisateur"),
-                "note":        a.get("note", 0),
-                "commentaire": a.get("commentaire", ""),
-                "date":        a.get("date", "")
-            }
-            for a in db.core_avis.find({"etablissement_id": etab["_id"]})
-        ],
-    }
-    return Response(data)
-
-from datetime import datetime
-
+# ───────────────────────── add review ───────────────────────
 @api_view(["POST"])
 def api_ajouter_avis(request, etab_id):
     try:
@@ -181,48 +143,115 @@ def api_ajouter_avis(request, etab_id):
         commentaire = request.data.get("commentaire", "").strip()
         if not commentaire:
             return Response({"error": "Commentaire requis."}, status=400)
-    except (ValueError, TypeError):
+    except (TypeError, ValueError):
         return Response({"error": "Note invalide."}, status=400)
 
-    etab = db.core_etablissement.find_one({"_id": ObjectId(etab_id)})
-    if not etab:
+    try:
+        etab = Etablissement.objects.get(id=etab_id, validate=True)
+    except Etablissement.DoesNotExist:
         return Response({"error": "Établissement introuvable."}, status=404)
 
-    db.core_avis.insert_one({
-        "etablissement_id": etab["_id"],
-        "auteur": "Utilisateur",
-        "note": note,
-        "commentaire": commentaire,
-        "date": datetime.now().isoformat()
-    })
+    user, _ = Utilisateur.objects.get_or_create(
+        email="anon@example.com",
+        defaults={"nom": "Visiteur"}
+    )
 
+    Avis.objects.create(
+        utilisateur=user,
+        etablissement=etab,
+        note=note,
+        commentaire=commentaire,
+        date=datetime.now(),
+    )
     return Response({"success": True})
 
 
-from .models import Localisation
-
+# ───────────────────────── localisation autocomplete ────────
 @api_view(["GET"])
 def localisation_autocomplete(request):
-    query = request.GET.get("q", "")
-    results = []
-
-    if query:
-        qs = Localisation.objects.filter(ville__icontains=query) | Localisation.objects.filter(quartier__icontains=query)
-        results = [
-            {"id": loc.id, "label": f"{loc.ville}, {loc.quartier}"}
-            for loc in qs
-        ]
-
-    return Response(results)
-
-
-from .models import Etablissement
-
-@api_view(["GET"])
-def etablissements_autocomplete(request):
     q = request.GET.get("q", "")
     results = []
     if q:
-        qs = Etablissement.objects.filter(nom__icontains=q)
-        results = [e.nom for e in qs[:8]]
+        qs = Localisation.objects.filter(ville__icontains=q) | Localisation.objects.filter(quartier__icontains=q)
+        results = [{"id": loc.id, "label": f"{loc.ville}, {loc.quartier}"} for loc in qs]
     return Response(results)
+
+
+# ───────────────────────── établissement autocomplete ───────
+@api_view(["GET"])
+def etablissements_autocomplete(request):
+    q = request.GET.get("q", "")
+    if q:
+        noms = (
+            Etablissement.objects
+            .filter(nom__icontains=q, validate=True)
+            .values_list("nom", flat=True)[:8]
+        )
+        return Response(list(noms))
+    return Response([])
+
+
+# ───────────────────────── admin list / approve / reject ────
+@api_view(["GET"])
+def admin_list_etablissements(request):
+    status = request.GET.get("status", "pending")
+    if status == "approved":
+        qs = Etablissement.objects.filter(validate=True)
+    elif status == "rejected":
+        qs = Etablissement.objects.filter(validate=False)
+    else:
+        qs = Etablissement.objects.filter(validate__isnull=True)
+
+    return Response(EtablissementSerializer(qs, many=True).data)
+
+
+@api_view(["PUT"])
+def admin_approve_etablissement(request, id):
+    if Etablissement.objects.filter(id=id).update(validate=True) == 1:
+        return Response({"success": True})
+    return Response({"error": "Établissement introuvable."}, status=404)
+
+
+@api_view(["PUT"])
+def admin_reject_etablissement(request, id):
+    if Etablissement.objects.filter(id=id).update(validate=False) == 1:
+        return Response({"success": True})
+    return Response({"error": "Établissement introuvable."}, status=404)
+
+
+@api_view(["GET"])
+def api_etablissement_detail(request, etab_id):
+    try:
+        etab = (
+            Etablissement.objects
+            .select_related("localisation")
+            .prefetch_related("formations", "avis_set__utilisateur")
+            .get(id=etab_id, validate=True)
+        )
+    except Etablissement.DoesNotExist:
+        return Response({"error": "Établissement introuvable."}, status=404)
+
+    loc = etab.localisation
+    data = {
+        "id":          etab.id,
+        "nom":         etab.nom,
+        "telephone":   etab.telephone,
+        "niveau":      etab.niveau,
+        "description": etab.description,
+        "site":        etab.site or "",
+        "ville":       loc.ville if loc else "",
+        "latitude":    loc.latitude if loc else None,
+        "longitude":   loc.longitude if loc else None,
+        "photo_urls":  etab.photo_urls,
+        "formations":  [f.intitule for f in etab.formations.all()],
+        "avis": [
+            {
+                "user":  a.utilisateur.nom,
+                "note":  a.note,
+                "commentaire": a.commentaire,
+                "date":  a.date.isoformat(),
+            }
+            for a in etab.avis_set.all()
+        ],
+    }
+    return Response(data)
