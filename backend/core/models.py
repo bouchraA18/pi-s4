@@ -28,36 +28,59 @@ class Formation(models.Model):
         return self.intitule
 
 
-class Fichier(models.Model):
-    photo = models.BinaryField()
-    autorisation = models.BinaryField(blank=True, null=True)
-
-
 class Etablissement(models.Model):
     NIVEAU_CHOICES = [
-        ('primaire', 'Primaire'),
-        ('secondaire', 'Secondaire'),
-        ('supérieur', 'Supérieur'),
-        ('lycée', 'Lycée'),
-        ('formation professionnelle', 'Formation professionnelle'),
+        ("primaire",  "Primaire"),
+        ("secondaire","Secondaire"),
+        ("supérieur", "Supérieur"),
+        ("lycée",     "Lycée"),
+        ("formation professionnelle", "Formation professionnelle"),
     ]
 
-    nom = models.CharField(max_length=255)
-    telephone = models.CharField(max_length=20)
+    nom           = models.CharField(max_length=255)
+    telephone     = models.CharField(max_length=20)
     date_creation = models.DateField()
-    validate = models.BooleanField(default=True)
-    niveau = models.CharField(max_length=40, choices=NIVEAU_CHOICES)
-    description = models.TextField()
-    site = models.URLField(blank=True, null=True)
-    photo_urls = models.JSONField(default=list, blank=True)
 
-    localisation = models.ForeignKey(Localisation, on_delete=models.SET_NULL, null=True)
-    formations = models.ManyToManyField(Formation)
+    # ─── approval flag ──────────────────────────────────────
+    # None   → en attente
+    # True   → approuvé
+    # False  → rejeté
+    validate      = models.BooleanField(null=True, default=None)
+
+    niveau        = models.CharField(max_length=40, choices=NIVEAU_CHOICES)
+    description   = models.TextField()
+    site          = models.URLField(blank=True, null=True)
+    photo_urls    = models.JSONField(default=list, blank=True)
+
+    localisation  = models.ForeignKey(Localisation, on_delete=models.SET_NULL, null=True)
+    formations    = models.ManyToManyField(Formation)
+
+    # NEW: one authorisation file per établissement
+    autorisation  = models.OneToOneField(
+        "Fichier",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="etablissement",
+    )
 
     def __str__(self):
         return self.nom
 
 
+class Fichier(models.Model):
+    """Generic binary file: photo OR PDF autorisation"""
+    # keep existing blobs
+    photo         = models.BinaryField(blank=True, null=True)
+    autorisation  = models.BinaryField(blank=True, null=True)
+
+    # NEW: store MIME for easy preview (optional but handy)
+    mime_type     = models.CharField(max_length=60, blank=True)
+
+    def __str__(self):
+        return f"Fichier {self.id}"
+    
+    
 class Avis(models.Model):
     utilisateur = models.ForeignKey(Utilisateur, on_delete=models.CASCADE)
     etablissement = models.ForeignKey(Etablissement, on_delete=models.CASCADE)

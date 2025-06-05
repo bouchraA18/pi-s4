@@ -397,6 +397,7 @@ const rechercher = async () => {
           <a style={{ color: "#003580", fontWeight: 500 }}>{t("menu.home")}</a>
           <a style={{ color: "#003580", fontWeight: 500 }}>{t("menu.about")}</a>
           <a style={{ color: "#003580", fontWeight: 500 }}>{t("menu.contact")}</a>
+          <a href="/admin/login" style={{ color: "#003580", fontWeight: 500 }}>Administration</a>
           <select onChange={(e) => changerLangue(e.target.value)} value={i18n.language} style={{ padding: "6px", borderRadius: "6px" }}>
             <option value="fr">FR</option>
             <option value="ar">AR</option>

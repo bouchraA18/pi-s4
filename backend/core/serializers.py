@@ -27,12 +27,22 @@ class FichierSerializer(serializers.ModelSerializer):
 
 
 class EtablissementSerializer(serializers.ModelSerializer):
-    localisation = LocalisationSerializer(read_only=True)
-    formations = FormationSerializer(many=True, read_only=True)
+    # handy extras for the admin table
+    ville            = serializers.CharField(source="localisation.ville",     read_only=True)
+    quartier         = serializers.CharField(source="localisation.quartier",  read_only=True)
+
+    # NEW → sends the <int> ID the front-end calls /admin/autorisation/<id>/
+    autorisation_id  = serializers.IntegerField(source="autorisation.id",     read_only=True)
 
     class Meta:
-        model = Etablissement
-        fields = '__all__'
+        model  = Etablissement
+        fields = [
+            "id", "nom", "telephone",
+            "niveau", "description",
+            "validate",
+            "ville", "quartier",
+            "autorisation_id",
+        ]
 
 
 class AvisSerializer(serializers.ModelSerializer):

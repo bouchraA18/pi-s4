@@ -1,6 +1,7 @@
 # core/views.py
 from datetime import datetime
 from math import radians, cos, sin, asin, sqrt
+import base64                                  # ← NEW
 
 from rest_framework.decorators import api_view
 from rest_framework.response    import Response
@@ -12,6 +13,7 @@ from .models import (
     Formation,
     Avis,
     Utilisateur,
+    Fichier,                                  # ← NEW
 )
 from .serializers import EtablissementSerializer
 
@@ -23,6 +25,7 @@ def haversine(lon1, lat1, lon2, lat2):
     dlon, dlat = lon2 - lon1, lat2 - lat1
     a = sin(dlat / 2) ** 2 + cos(lat1) * cos(lat2) * sin(dlon / 2) ** 2
     return R * 2 * asin(sqrt(a))
+
 
 
 # ───────────────────────── metadata list ────────────────────
@@ -255,3 +258,24 @@ def api_etablissement_detail(request, etab_id):
         ],
     }
     return Response(data)
+
+
+@api_view(["GET"])
+def admin_autorisation(request, file_id):
+    """
+    Returns the autorisation BLOB as a data URI so the front-end
+    can preview PDFs or images without an extra download step.
+    """
+    try:
+        f = Fichier.objects.get(id=file_id)
+    except Fichier.DoesNotExist:
+        return Response({"error": "Fichier introuvable."}, status=404)
+
+    if not f.autorisation:
+        return Response({"data": ""})
+
+    # utilise le vrai MIME s’il est stocké, sinon retombe sur PDF
+    mime = f.mime_type or "application/pdf"
+    data_uri = "data:%s;base64,%s" % (mime, base64.b64encode(f.autorisation).decode())
+
+    return Response({"data": data_uri})
