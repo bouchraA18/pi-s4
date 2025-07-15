@@ -2,7 +2,6 @@
 from datetime import datetime
 from math import radians, cos, sin, asin, sqrt
 import base64                                  # ← NEW
-
 from rest_framework.decorators import api_view
 from rest_framework.response    import Response
 from rest_framework.views       import APIView
@@ -15,7 +14,7 @@ from .models import (
     Utilisateur,
     Fichier,                                  # ← NEW
 )
-from .serializers import EtablissementSerializer
+from .serializers import EtablissementSerializer, AvisSerializer
 
 
 # ───────────────────────── helpers ──────────────────────────
@@ -279,3 +278,21 @@ def admin_autorisation(request, file_id):
     data_uri = "data:%s;base64,%s" % (mime, base64.b64encode(f.autorisation).decode())
 
     return Response({"data": data_uri})
+
+# ----------------- admin list reviews ----------------------------
+
+
+@api_view(['GET'])
+def liste_avis(request):
+    avis = Avis.objects.select_related("utilisateur", "etablissement").order_by("-date")
+    serializer = AvisSerializer(avis, many=True)
+    return Response(serializer.data)
+
+@api_view(['DELETE'])
+def supprimer_avis(request, avis_id):
+    try:
+        avis = Avis.objects.get(id=avis_id)
+        avis.delete()
+        return Response({"success": True})
+    except Avis.DoesNotExist:
+        return Response({"error": "Avis introuvable"}, status=404)

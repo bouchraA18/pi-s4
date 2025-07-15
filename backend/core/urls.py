@@ -8,6 +8,8 @@ from .views import (
     admin_approve_etablissement,
     admin_reject_etablissement,
     admin_autorisation,
+    liste_avis,
+    supprimer_avis,
 )
 
 from .views import (
@@ -27,7 +29,7 @@ urlpatterns = [
     path("admin/etablissements/<int:id>/approve/", admin_approve_etablissement),
     path("admin/etablissements/<int:id>/reject/", admin_reject_etablissement),
     path("admin/autorisation/<int:file_id>/", admin_autorisation),
-
-
-   
+    path("admin/avis/",liste_avis),
+    path("admin/avis/<int:avis_id>/", supprimer_avis),
+ 
 ]
