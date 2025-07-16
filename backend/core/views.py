@@ -15,6 +15,7 @@ from .models import (
     Fichier,                                  # ← NEW
 )
 from .serializers import EtablissementSerializer, AvisSerializer
+from django.db.models import Q
 
 
 # ───────────────────────── helpers ──────────────────────────
@@ -91,6 +92,7 @@ class RechercheEtablissements(APIView):
         quartier_q  = request.GET.get("quartier",   "").lower().strip()
         formation_q = request.GET.get("formation",  "").lower().strip()
         nom_q       = request.GET.get("nom",        "").lower().strip()
+        localisation_id = request.GET.get("localisation")
 
         # ③ base queryset → only approved
         qs = (
@@ -101,18 +103,24 @@ class RechercheEtablissements(APIView):
         )
 
         # ④ apply filters
-        if niveau_q:
-            qs = qs.filter(niveau__icontains=niveau_q)
         if nom_q:
             qs = qs.filter(nom__icontains=nom_q)
-        if ville_q or quartier_q:
-            qs = qs.filter(localisation__isnull=False)
-            if ville_q:
-                qs = qs.filter(localisation__ville__icontains=ville_q)
-            if quartier_q:
-                qs = qs.filter(localisation__quartier__icontains=quartier_q)
-        if formation_q:
-            qs = qs.filter(formations__intitule__icontains=formation_q)
+        else:
+            if niveau_q:
+                qs = qs.filter(niveau__icontains=niveau_q)
+            if localisation_id:
+                try:
+                    qs = qs.filter(localisation__id=int(localisation_id))
+                except ValueError:
+                    return Response({"error": "ID de localisation invalide."}, status=400)
+            if ville_q or quartier_q:
+                qs = qs.filter(localisation__isnull=False)
+                if ville_q:
+                    qs = qs.filter(localisation__ville__icontains=ville_q)
+                if quartier_q:
+                    qs = qs.filter(localisation__quartier__icontains=quartier_q)
+            if formation_q:
+                qs = qs.filter(formations__intitule__icontains=formation_q)
 
         # ⑤ build response with distances
         results = []
@@ -171,12 +179,41 @@ def api_ajouter_avis(request, etab_id):
 # ───────────────────────── localisation autocomplete ────────
 @api_view(["GET"])
 def localisation_autocomplete(request):
-    q = request.GET.get("q", "")
+    q = request.GET.get("q", "").strip()
     results = []
+
     if q:
-        qs = Localisation.objects.filter(ville__icontains=q) | Localisation.objects.filter(quartier__icontains=q)
-        results = [{"id": loc.id, "label": f"{loc.ville}, {loc.quartier}"} for loc in qs]
+        q_lower = q.lower()
+
+        for loc in Localisation.objects.all():
+            ville = loc.ville or ""
+            quartier = loc.quartier or ""
+
+            ville_lower = ville.lower()
+            quartier_lower = quartier.lower()
+
+            ville_match = q_lower in ville_lower
+            quartier_match = q_lower in quartier_lower
+
+            if ville_match or quartier_match:
+                # Construire le label intelligent
+                if ville and quartier:
+                    label = f"{ville}, {quartier}"
+                elif ville:
+                    label = ville
+                elif quartier:
+                    label = quartier
+                else:
+                    label = "Sans nom"
+
+                results.append({
+                    "id": loc.id,
+                    "label": label
+                })
+
     return Response(results)
+
+
 
 
 # ───────────────────────── établissement autocomplete ───────

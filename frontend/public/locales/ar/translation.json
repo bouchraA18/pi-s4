@@ -25,8 +25,9 @@
     "button": "ابحث"
   },
   "recherche": {
-    "placeholderNom": "الاسم أو المستوى أو النوع",
+    "placeholderNom": "اسم المؤسسة",
     "placeholderAdresse": "المدينة أو الحي",
+    "placeholderniveautype":"النوع, المستوى",
     "niveau": "المستوى",
     "type": "النوع",
     "primaire": "ابتدائي",

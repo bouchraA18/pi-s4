@@ -61,9 +61,7 @@ function Accueil() {
 
   /* ajout pour la recherche en deux temps */
   const [villeFixe,  setVilleFixe]  = useState(false);
-  const [villeBase,  setVilleBase]  = useState("");
   const [niveauFixe, setNiveauFixe] = useState(false);
-  const [niveauBase, setNiveauBase] = useState("");
 
   /* ✅ options inclut maintenant quartiers + formations */
   const [options, setOptions] = useState({
@@ -73,7 +71,7 @@ function Accueil() {
   const [nom, setNom] = useState("");
   const [type, setType] = useState("");
   const [selectedLocalisation, setSelectedLocalisation] = useState(null);
-  const [categorie, setCategorie] = useState("nom");
+  const [categorie, setCategorie] = useState("");
   const [etabs, setEtablissements] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [aLanceRecherche, setALanceRecherche] = useState(false);
@@ -96,6 +94,8 @@ function Accueil() {
 
   const villeRef  = useRef(null);
   const niveauRef = useRef(null);
+  const menuRef = useRef(null);
+  const menuReft = useRef(null);
 
   /* ─── results state ─────────────────────────────── */
   const [loading,      setLoading]      = useState(false);
@@ -172,7 +172,6 @@ useEffect(() => {
 useEffect(() => {
   const handleClickOutside = (event) => {
     if (containerRef.current && !containerRef.current.contains(event.target)) {
-      setShowFiltres(false);
       setSuggestionsNom([]);
     }
   };
@@ -212,26 +211,7 @@ const handleAdresseChange = async (e) => {
   }
 };
 
-useEffect(() => {
-  if (filtre && !selectedLocalisation) {
-    const fetchIdFromValeurDefaut = async () => {
-      try {
-        const res = await axios.get("http://localhost:8000/api/localisation-autocomplete/", {
-          params: { q: filtre }
-        });
 
-        const match = res.data.find((s) => s.label.toLowerCase() === filtre.toLowerCase());
-        if (match) {
-          setSelectedLocalisation(match.id);
-        }
-      } catch (err) {
-        console.error("❌ Erreur lors du chargement initial de l’ID localisation :", err.message);
-      }
-    };
-
-    fetchIdFromValeurDefaut();
-  }
-}, [filtre, selectedLocalisation]);
 
 // ------etablissement autocomplet------------------
 useEffect(() => {
@@ -280,6 +260,22 @@ useEffect(() => {
         : []
     );
   }, [niveau, niveauFixe, options.niveaux, options.formations]);
+  
+
+ useEffect(() => {
+  const handleClickOutside = (event) => {
+    if (menuRef.current && !menuRef.current.contains(event.target)) {
+      setShowFiltres(false);
+    
+    }
+  };
+  document.addEventListener("mousedown", handleClickOutside);
+  return () => {
+    document.removeEventListener("mousedown", handleClickOutside);
+  };
+}, []);
+
+
 
   /* ─── global click to close boxes ────────────────── */
   useEffect(() => {
@@ -295,6 +291,34 @@ useEffect(() => {
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (menuReft.current && !menuReft.current.contains(event.target)) {
+        setSuggestionsAdresse(false);             
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
+
+
+
+  const updateCategorie = (newNiveau = null, newType = null) => {
+    const niveauFinal = newNiveau !== null ? newNiveau : niveau;
+    const typeFinal = newType !== null ? newType : type;
+
+    if (newNiveau !== null) setNiveau(newNiveau);
+    if (newType !== null) setType(newType);
+
+    const newCategorie = [niveauFinal, typeFinal].filter(Boolean).join(" - ");
+    setCategorie(newCategorie);
+  };
+
+
+
   /* ─── search helper (LOCAL display) ─────────────── */
 const rechercher = async () => {
   if (!nom.trim() && !niveau.trim() && !type.trim() && !filtre.trim()) {
@@ -305,27 +329,26 @@ const rechercher = async () => {
   setLoading(true);
   setCurrentPage(1);
 
-  // build query-string params for the search
   const params = {};
 
-  // 1) suggestion already selected → we have its ID
+  // 1) Localisation (ID si sélectionnée)
   if (selectedLocalisation) {
     params.localisation = selectedLocalisation;
 
-  // 2) user typed text → split "Ville, Quartier"
+  // 2) Sinon texte libre : "Ville, Quartier"
   } else if (filtre.trim()) {
     const [villePart, quartierPart] = filtre.split(",").map(s => s.trim());
     if (villePart)    params.ville    = villePart;
     if (quartierPart) params.quartier = quartierPart;
   }
 
-  // keep the existing category-based filters
-  if (categorie === "nom")    params.nom    = nom.trim();
-  if (categorie === "niveau") params.niveau = nom.trim();
-  if (categorie === "type")   params.type   = nom.trim();
+  // 3) Ajout des autres filtres
+  if (nom.trim())    params.nom    = nom.trim();
+  if (niveau.trim()) params.niveau = niveau.trim();
+  if (type.trim())   params.type   = type.trim();
 
-  // optional GPS coordinates (distance sorting)
-  if (coords && coords.latitude != null && coords.longitude != null) {
+  // 4) Position GPS (si dispo)
+  if (coords?.latitude != null && coords?.longitude != null) {
     params.lat = coords.latitude;
     params.lon = coords.longitude;
   }
@@ -335,18 +358,18 @@ const rechercher = async () => {
     const res = await axios.get("http://localhost:8000/api/recherche/", { params });
 
     setEtablissements(res.data);
-    setNoResult(res.data.length === 0);          // 👈 NEW
+    setNoResult(res.data.length === 0);
     setVille(filtre || t("recherche.zoneParDefaut"));
     setShowModal(true);
     setALanceRecherche(true);
-    setLoading(false);
   } catch (err) {
     console.error("❌ Erreur API recherche :", err.message);
     setEtablissements([]);
-    setNoResult(false);                          // 👈 NEW
+    setNoResult(false);
     setVille(filtre || t("recherche.zoneParDefaut"));
     setShowModal(true);
     setALanceRecherche(true);
+  } finally {
     setLoading(false);
   }
 };
@@ -473,32 +496,23 @@ const rechercher = async () => {
               marginBottom: "1rem",
               padding: "0.5rem",
               gap: "1rem",
-              maxWidth: "700px",
-              width: "100%",
+              maxWidth: "900px",
+              width: "700px",
             }}
           >
-            {/* Nom avec auto-complétion */}
+    {/*----------------------- Nom input ------------------------------ */}
             <div ref={containerRef} style={{ position: "relative", flex: 1 }}>
               <input
                 type="search"
                 ref={inputRef}
                 placeholder={t("recherche.placeholderNom")}
                 value={nom}
-                onFocus={() => {
-                  if (typeof nom === "string" && nom.trim() === "") {
-                    setShowFiltres(true);
-                  }
-                }}
                 onChange={(e) => {
                   const value = e.target.value;
                   setNom(value);
-                  setCategorie("nom");
-
                   if (value.trim().length === 0) {
                     setSuggestionsNom([]);
-                    setShowFiltres(true);
                   } else {
-                    setShowFiltres(false);
                     axios
                       .get("http://localhost:8000/api/etablissements-autocomplete/", {
                         params: { q: value },
@@ -544,7 +558,6 @@ const rechercher = async () => {
                       onClick={() => {
                         setNom(item);
                         setSuggestionsNom([]);
-                        setShowFiltres(false);
                       }}
                       onMouseEnter={() => setHoveredIndex(index)}
                       onMouseLeave={() => setHoveredIndex(null)}
@@ -561,110 +574,166 @@ const rechercher = async () => {
                 </ul>
               )}
 
-              {/* Menu déroulant des filtres */}
-              {showFiltres && suggestionsNom.length === 0 && (
-                <div
-                  style={{
-                    position: "absolute",
-                    top: "100%",
-                    left: 0,
-                    right: 0,
-                    backgroundColor: "#fff",
-                    border: "1px solid #ccc",
-                    padding: "1rem",
-                    zIndex: 999,
-                    borderRadius: "0 0 10px 10px",
-                    boxShadow: "0 4px 10px rgba(0,0,0,0.1)",
-                  }}
-                >
-                  <div style={{ marginBottom: "1rem" }}>
-                    <div
-                      style={{
-                        color: "#666",
-                        fontSize: "0.8rem",
-                        marginBottom: "0.5rem",
-                      }}
-                    >
-                      {t("recherche.niveau")}
-                    </div>
-                    {[t("recherche.primaire"), t("recherche.secondaire"), t("recherche.supérieur")].map(
-                      (n, index) => (
-                        <div
-                          key={n}
-                          onClick={() => {
-                            setNiveau(n);
-                            setCategorie("niveau");
-                            setNom(n);
-                            setShowFiltres(false);
-                          }}
-                          onMouseEnter={() => setHoveredIndex(index)}
-                          onMouseLeave={() => setHoveredIndex(null)}
-                          style={{
-                            padding: "0.5rem",
-                            cursor: "pointer",
-                            backgroundColor:
-                              hoveredIndex === index
-                                ? "#f0f8ff"
-                                : niveau === n
-                                ? "#e6f0ff"
-                                : "transparent",
-                            borderRadius: "6px",
-                          }}
-                        >
-                          {n}
-                        </div>
-                      )
-                    )}
-                  </div>
+             
+            </div>
+            
+      {/* -------------- type et niveau ------------------------------------ */}
+          <div style={{ flex: 1, position: "relative" }} ref={menuRef}>
+            <input
+              type="search"
+              id="type-et-niveau"
+              placeholder={t("recherche.placeholderniveautype")}
+              value={categorie}
+              readOnly
+              onFocus={() => setShowFiltres(true)}
+              style={{
+                width: "100%",
+                minWidth: "160px",
+                padding: "1rem",
+                fontSize: "1rem",
+                border: "none",
+                borderLeft: "1px solid #ddd",
+                borderRadius: "8px",
+                outline: "none",
+              }}
+            /> 
+            {categorie && (
+              <span
+                onClick={() => {
+                  setCategorie("");
+                  setType("");
+                  setNiveau("");
+                }}
+                style={{
+                  position: "absolute",
+                  right: "10px",
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  fontSize: "1.2rem",
+                  cursor: "pointer",
+                  color: "#666",
+                }}
+              >
+                ×
+              </span>
+            )}
 
-                  <div>
-                    <div
-                      style={{
-                        color: "#666",
-                        fontSize: "0.8rem",
-                        marginBottom: "0.5rem",
-                      }}
-                    >
-                      {t("recherche.type")}
-                    </div>
-                    {[t("recherche.publique"), t("recherche.privee")].map((t_, index) => (
+            {showFiltres && (
+              <div
+                style={{
+                  position: "absolute",
+                  top: "100%",
+                  left: 0,
+                  right: 0,
+                  backgroundColor: "#fff",
+                  border: "1px solid #ccc",
+                  padding: "1rem",
+                  zIndex: 999,
+                  borderRadius: "0 0 10px 10px",
+                  boxShadow: "0 4px 10px rgba(0,0,0,0.1)",
+                }}
+              >
+                {/* Niveau */}
+                <div style={{ marginBottom: "1rem" }}>
+                  <div style={{ color: "#666", fontSize: "0.8rem", marginBottom: "0.5rem" }}>
+                    {t("recherche.niveau")}
+                  </div>
+                  {[t("recherche.primaire"), t("recherche.secondaire"), t("recherche.supérieur")].map(
+                    (n, index) => (
                       <div
-                        key={t_}
-                        onClick={() => {
-                          setType(t_);
-                          setCategorie("type");
-                          setNom(t_);
-                          setShowFiltres(false);
-                        }}
-                        onMouseEnter={() => setHoveredIndex(index + 10)}
+                        key={n}
+                        onClick={() => updateCategorie(n, null)}
+                        onMouseEnter={() => setHoveredIndex(index)}
                         onMouseLeave={() => setHoveredIndex(null)}
                         style={{
                           padding: "0.5rem",
                           cursor: "pointer",
                           backgroundColor:
-                            hoveredIndex === index + 10
+                            hoveredIndex === index
                               ? "#f0f8ff"
-                              : type === t_
+                              : niveau === n
                               ? "#e6f0ff"
                               : "transparent",
                           borderRadius: "6px",
                         }}
                       >
-                        {t_}
+                        {n}
                       </div>
-                    ))}
-                  </div>
+                    )
+                  )}
                 </div>
-              )}
-            </div>
 
-            <div style={{ flex: 1, position: "relative" }}>
+                {/* Type */}
+                <div>
+                  <div style={{ color: "#666", fontSize: "0.8rem", marginBottom: "0.5rem" }}>
+                    {t("recherche.type")}
+                  </div>
+                  {[t("recherche.publique"), t("recherche.privee")].map((t_, index) => (
+                    <div
+                      key={t_}
+                      onClick={() => {
+                        updateCategorie(null, t_);
+                      }}
+                      onMouseEnter={() => setHoveredIndex(index + 10)}
+                      onMouseLeave={() => setHoveredIndex(null)}
+                      style={{
+                        padding: "0.5rem",
+                        cursor: "pointer",
+                        backgroundColor:
+                          hoveredIndex === index + 10
+                            ? "#f0f8ff"
+                            : type === t_
+                            ? "#e6f0ff"
+                            : "transparent",
+                        borderRadius: "6px",
+                      }}
+                    >
+                      {t_}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+
+
+   {/* -------------------  localisation input ---------------------------- */}
+            <div style={{ flex: 2, position: "relative" }}>
               <input
                 type="search"
                 id="search-filtre"
                 placeholder={t("recherche.placeholderAdresse")}
                 value={filtre}
-                onChange={handleAdresseChange}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setFiltre(value);
+                  setSelectedLocalisation(null);
+
+                  if (value.trim().length > 0) {
+                    axios
+                      .get("http://localhost:8000/api/localisation-autocomplete/", {
+                        params: { q: value.trim() },
+                      })
+                      .then((res) => {
+                        setSuggestionsAdresse(res.data);
+
+                        const match = res.data.find(
+                          (s) => s.label.toLowerCase().trim() === value.toLowerCase().trim()
+                        );
+
+                        if (match) {
+                          setSelectedLocalisation(match.id);
+                        }
+                      })
+                      .catch((err) => {
+                        console.error("❌ Erreur autocomplete:", err.message);
+                        setSuggestionsAdresse([]);
+                      });
+                  } else {
+                    setSuggestionsAdresse([]);
+                  }
+                }}
                 style={{
                   width: "100%",
                   minWidth: "160px",
@@ -693,6 +762,7 @@ const rechercher = async () => {
                     margin: 0,
                     padding: 0,
                   }}
+                  ref={menuReft}
                 >
                   {suggestionsAdresse.map((sugg, index) => (
                     <li
@@ -842,9 +912,6 @@ const rechercher = async () => {
     </p>
   </div>
 )}
-
-
-
                 {paginated.map((e) => (
                   <div
                     key={e.id}

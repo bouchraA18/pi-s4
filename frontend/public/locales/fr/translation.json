@@ -25,8 +25,9 @@
     "button": "Rechercher"
   },
   "recherche": {
-    "placeholderNom": "Nom, niveau ou type",
+    "placeholderNom": "Nom d`établissement ",
     "placeholderAdresse": "Ville ou quartier",
+    "placeholderniveautype":"Niveau ou Type ",
     "niveau": "Niveau",
     "type": "Type",
     "primaire": "Primaire",
