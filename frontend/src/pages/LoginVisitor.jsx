@@ -2,48 +2,32 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 
-function AdminLogin() {
+function LoginVisitor() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const navigate = useNavigate();
 
-  
-   const handleLogin = async (e) => {
-  e.preventDefault();
-  setError('');
-  // Temporary debug logging - add this before the axios call
-console.log('Attempting login with:', { email, password });
-  try {
-    const response = await axios.post('http://localhost:8000/api/token/', {
-      email: email,
-      password: password,
-    });
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    setError('');
 
-    // Check if user is admin
-    if (!response.data.is_staff) {
-      setError("Accès réservé aux administrateurs");
-      return;
-    }
+    try {
+      const response = await axios.post('http://localhost:8000/api/token/', {
+        email,
+        password,
+      });
 
-    localStorage.setItem('admin_token', response.data.access);
-    navigate('/admin/dashboard');
-    
-  } catch (err) {
-    if (err.response && err.response.data) {
-      // Handle Django error response format
-      if (err.response.data.message) {
-        setError(Array.isArray(err.response.data.message) 
-          ? err.response.data.message[0] 
-          : err.response.data.message);
-      } else {
-        setError('Identifiants incorrects');
+      localStorage.setItem('visitor_token', response.data.access);
+      if (response.data.role !== 'visiteur') {
+        setError("Ce compte n'est pas un visiteur.");
+        return;
       }
-    } else {
-      setError('Erreur de connexion au serveur');
+      navigate('/');
+    } catch (err) {
+      setError("Email ou mot de passe invalide.");
     }
-  }
-};
+  };
 
   return (
     <div style={styles.pageContainer}>
@@ -51,13 +35,13 @@ console.log('Attempting login with:', { email, password });
       <div style={{ ...styles.shape, ...styles.shape2 }} />
 
       <div style={styles.card}>
-        <h2 style={styles.title}>Admin Login</h2>
+        <h2 style={styles.title}>Connexion Visiteur</h2>
 
         {error && <div style={styles.errorBox}>{error}</div>}
 
         <form onSubmit={handleLogin} style={styles.form}>
           <input
-            type="text"
+            type="email"
             placeholder="Adresse e-mail"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
@@ -73,7 +57,7 @@ console.log('Attempting login with:', { email, password });
             style={styles.input}
           />
           <button type="submit" style={styles.button}>
-            Connexion
+            Se connecter
           </button>
         </form>
       </div>
@@ -199,4 +183,4 @@ focusHoverStyles.innerHTML = `
 `;
 document.head.appendChild(focusHoverStyles);
 
-export default AdminLogin;
+export default LoginVisitor;

@@ -9,8 +9,7 @@ REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
         "rest_framework_simplejwt.authentication.JWTAuthentication",
     ],
-    "UNAUTHENTICATED_USER": None,
-    "UNAUTHENTICATED_TOKEN": None,
+   
 }
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -31,6 +30,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'corsheaders',
     'core',
+    'accounts',
 ]
 
 # ───────── Middleware ─────────
@@ -102,3 +102,9 @@ SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(days=1),
     "AUTH_HEADER_TYPES": ("Bearer",),
 }
+
+
+AUTH_USER_MODEL = 'core.Utilisateur'
+
+
+

@@ -1,13 +1,37 @@
-
+#core/models.py
 from django.db import models
 
-class Utilisateur(models.Model):
+from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin, BaseUserManager
+
+class UtilisateurManager(BaseUserManager):
+    def create_user(self, email, nom, mot_de_passe=None, **extra_fields):
+        if not email:
+            raise ValueError("L'adresse e-mail est requise.")
+        email = self.normalize_email(email)
+        utilisateur = self.model(email=email, nom=nom, **extra_fields)
+        utilisateur.set_password(mot_de_passe)
+        utilisateur.save(using=self._db)
+        return utilisateur
+
+    def create_superuser(self, email, nom, mot_de_passe=None, **extra_fields):
+        extra_fields.setdefault("is_staff", True)
+        extra_fields.setdefault("is_superuser", True)
+        return self.create_user(email, nom, mot_de_passe, **extra_fields)
+
+class Utilisateur(AbstractBaseUser, PermissionsMixin):
     nom = models.CharField(max_length=100)
     email = models.EmailField(unique=True)
-    mot_de_passe = models.CharField(max_length=255)
+    is_active = models.BooleanField(default=True)
+    is_staff = models.BooleanField(default=False)
+
+    objects = UtilisateurManager()
+
+    USERNAME_FIELD = "email"
+    REQUIRED_FIELDS = ["nom"]
 
     def __str__(self):
         return self.nom
+
 
 
 class Localisation(models.Model):
@@ -29,6 +53,11 @@ class Formation(models.Model):
 
 
 class Etablissement(models.Model):
+    TYPE_CHOICES = [
+        ("publique", "Publique"),
+        ("privée",   "Privée"),
+    ]
+
     NIVEAU_CHOICES = [
         ("primaire",  "Primaire"),
         ("secondaire","Secondaire"),
@@ -40,32 +69,28 @@ class Etablissement(models.Model):
     nom           = models.CharField(max_length=255)
     telephone     = models.CharField(max_length=20)
     date_creation = models.DateField()
-
-    # ─── approval flag ──────────────────────────────────────
-    # None   → en attente
-    # True   → approuvé
-    # False  → rejeté
     validate      = models.BooleanField(null=True, default=None)
-
     niveau        = models.CharField(max_length=40, choices=NIVEAU_CHOICES)
+    type          = models.CharField(max_length=20, choices=TYPE_CHOICES, default="publique")  # 👈 NEW
     description   = models.TextField()
     site          = models.URLField(blank=True, null=True)
     photo_urls    = models.JSONField(default=list, blank=True)
-
     localisation  = models.ForeignKey(Localisation, on_delete=models.SET_NULL, null=True)
     formations    = models.ManyToManyField(Formation)
+    utilisateur   = models.OneToOneField(Utilisateur, on_delete=models.CASCADE, null=True)
+    autorisation  = models.OneToOneField("Fichier", on_delete=models.SET_NULL, null=True, blank=True, related_name="etablissement")
 
-    # NEW: one authorisation file per établissement
-    autorisation  = models.OneToOneField(
-        "Fichier",
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name="etablissement",
+    utilisateur = models.OneToOneField(
+        Utilisateur,
+        on_delete=models.CASCADE,
+        related_name='etablissement',
+        null=True,  # Important for initial creation
+        blank=True
     )
 
     def __str__(self):
         return self.nom
+
 
 
 class Fichier(models.Model):

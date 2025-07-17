@@ -17,16 +17,17 @@
   "location": {
     "current": "Localisation actuelle :"
   },
-  "search": {
+   "search": {
     "placeholder_ville": "Toutes villes",
     "placeholder_quartier": "Tous quartiers",
     "placeholder_niveau": "Tous niveaux",
     "placeholder_formation": "Tous types de formation",
     "button": "Rechercher"
   },
-  "recherche": {
-    "placeholderNom": "Nom, niveau ou type",
+   "recherche": {
+    "placeholderNom": "Nom d`établissement ",
     "placeholderAdresse": "Ville ou quartier",
+    "placeholderniveautype":"Niveau ou Type ",
     "niveau": "Niveau",
     "type": "Type",
     "primaire": "Primaire",
@@ -35,7 +36,6 @@
     "publique": "Publique",
     "privee": "Privée"
   },
-
   "errors": {
   "search": "Erreur lors de la recherche.",
   "noResults": "Aucun établissement ne correspond à votre recherche."
@@ -74,6 +74,13 @@
       "title": "🚀 Accès rapide",
       "text": "Obtenez des résultats instantanés et précis sans remplir de longs formulaires. L'accès à l'information devient simple et rapide."
     }
-  }
+  },
+  "auth": {
+  "loginVisitor": "Connexion Visiteur",
+  "loginEstablishment": "Connexion Établissement",
+  "registerVisitor": "Inscription Visiteur",
+  "registerEstablishment": "Inscription Établissement"
+}
+
 }
 

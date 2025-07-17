@@ -2,48 +2,35 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 
-function AdminLogin() {
+function RegisterVisitor() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirm, setConfirm] = useState('');
   const [error, setError] = useState('');
   const navigate = useNavigate();
 
-  
-   const handleLogin = async (e) => {
-  e.preventDefault();
-  setError('');
-  // Temporary debug logging - add this before the axios call
-console.log('Attempting login with:', { email, password });
-  try {
-    const response = await axios.post('http://localhost:8000/api/token/', {
-      email: email,
-      password: password,
-    });
+  const handleRegister = async (e) => {
+    e.preventDefault();
+    setError('');
 
-    // Check if user is admin
-    if (!response.data.is_staff) {
-      setError("Accès réservé aux administrateurs");
+    if (password !== confirm) {
+      setError("Les mots de passe ne correspondent pas.");
       return;
     }
 
-    localStorage.setItem('admin_token', response.data.access);
-    navigate('/admin/dashboard');
-    
-  } catch (err) {
-    if (err.response && err.response.data) {
-      // Handle Django error response format
-      if (err.response.data.message) {
-        setError(Array.isArray(err.response.data.message) 
-          ? err.response.data.message[0] 
-          : err.response.data.message);
-      } else {
-        setError('Identifiants incorrects');
+    try {
+      const response = await axios.post('http://localhost:8000/api/register/visitor/', {
+        email,
+        password
+      });
+
+      if (response.status === 201) {
+        navigate('/login/visitor');
       }
-    } else {
-      setError('Erreur de connexion au serveur');
+    } catch (err) {
+      setError("Erreur lors de l'inscription. Vérifiez vos informations.");
     }
-  }
-};
+  };
 
   return (
     <div style={styles.pageContainer}>
@@ -51,13 +38,13 @@ console.log('Attempting login with:', { email, password });
       <div style={{ ...styles.shape, ...styles.shape2 }} />
 
       <div style={styles.card}>
-        <h2 style={styles.title}>Admin Login</h2>
+        <h2 style={styles.title}>Inscription Visiteur</h2>
 
         {error && <div style={styles.errorBox}>{error}</div>}
 
-        <form onSubmit={handleLogin} style={styles.form}>
+        <form onSubmit={handleRegister} style={styles.form}>
           <input
-            type="text"
+            type="email"
             placeholder="Adresse e-mail"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
@@ -72,8 +59,16 @@ console.log('Attempting login with:', { email, password });
             required
             style={styles.input}
           />
+          <input
+            type="password"
+            placeholder="Confirmer le mot de passe"
+            value={confirm}
+            onChange={(e) => setConfirm(e.target.value)}
+            required
+            style={styles.input}
+          />
           <button type="submit" style={styles.button}>
-            Connexion
+            S'inscrire
           </button>
         </form>
       </div>
@@ -188,10 +183,12 @@ focusHoverStyles.innerHTML = `
     border-color: #2F74D5;
     box-shadow: 0 0 0 3px rgba(47,116,213,.25);
   }
+
   button:hover {
     background-color: #2A67C4;
     transform: translateY(-2px);
   }
+
   button:active {
     background-color: #2158AD;
     transform: translateY(0);
@@ -199,4 +196,4 @@ focusHoverStyles.innerHTML = `
 `;
 document.head.appendChild(focusHoverStyles);
 
-export default AdminLogin;
+export default RegisterVisitor;

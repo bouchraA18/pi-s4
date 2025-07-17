@@ -12,6 +12,12 @@ import ProtectedRoute          from "./components/ProtectedRoute";
 import AdminDashboard          from "./pages/AdminDashboard";
 import AdminEtablissements     from "./pages/AdminEtablissements";
 import AdminReviews            from "./pages/AdminReviews";
+import RegisterVisitor from './pages/RegisterVisitor';
+import LoginVisitor from './pages/LoginVisitor';
+import LoginEstablishment from './pages/LoginEstablishment';
+import RegisterEstablishment from "./pages/RegisterEstablishment";
+import EstablishmentDashboard    from './pages/EstablishmentDashboard';
+
 
 function App() {
   return (
@@ -42,6 +48,13 @@ function App() {
           <Route path="etablissements"     element={<AdminEtablissements />} />
           <Route path="reviews"            element={<AdminReviews />} />
         </Route>
+          <Route path="/register/visitor" element={<RegisterVisitor />} />
+          <Route path="/register/establishment" element={< RegisterEstablishment/>} />
+          <Route path="/login/visitor" element={<LoginVisitor />} />
+          <Route path="/login/establishment" element={<LoginEstablishment />} />
+          <Route path="/establishment/dashboard" element={<EstablishmentDashboard />} />
+
+
       </Routes>
     </Router>
   );
